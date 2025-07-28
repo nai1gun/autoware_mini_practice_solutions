@@ -7,5 +7,6 @@ rate = rospy.Rate(2)
 pub = rospy.Publisher('/message', String, queue_size=10)
 
 while not rospy.is_shutdown():
-    pub.publish("Hello world!")
+    message = rospy.get_param('~message', 'Hello World!')
+    pub.publish(message)
     rate.sleep()
