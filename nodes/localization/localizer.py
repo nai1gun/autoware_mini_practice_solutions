@@ -82,6 +82,32 @@ class Localizer:
         current_pose_msg.pose.orientation = orientation
         self.current_pose_pub.publish(current_pose_msg)
 
+        current_velocity = TwistStamped()
+        current_velocity.header.stamp = msg.header.stamp
+        current_velocity.header.frame_id = "base_link"
+        current_velocity.twist.linear.x = msg.north_velocity
+        current_velocity.twist.linear.y = msg.east_velocity
+
+        self.current_velocity_pub.publish(current_velocity)
+
+        # create a transform message
+        t = TransformStamped()
+
+        # fill in the transform message - t
+        t.header.stamp = msg.header.stamp
+        t.header.frame_id = "map"
+        t.child_frame_id = "base_link"
+
+        t.transform.translation.x = substracted_x
+        t.transform.translation.y = substracted_y
+        t.transform.translation.z = msg.height - self.undulation
+
+        t.transform.rotation = orientation
+
+        # publish transform
+        self.br.sendTransform(t)
+
+
     def run(self):
         rospy.spin()
 
