@@ -31,8 +31,16 @@ class Localizer:
         self.current_velocity_pub = rospy.Publisher('current_velocity', TwistStamped, queue_size=10)
         self.br = TransformBroadcaster()
 
+        # create a coordinate transformer
+        self.transformer = Transformer.from_crs(self.crs_wgs84, self.crs_utm)
+        self.origin_x, self.origin_y = self.transformer.transform(utm_origin_lat, utm_origin_lon)
+
     def transform_coordinates(self, msg):
-        print(msg.latitude, msg.longitude)
+        # print(msg.latitude, msg.longitude)
+        transformed_x, transformed_y = self.transformer.transform(msg.latitude, msg.longitude)
+        substracted_x = transformed_x - self.origin_x
+        substracted_y = transformed_y - self.origin_y
+        print(f"x:{substracted_x} :{substracted_y}")
 
     def run(self):
         rospy.spin()
