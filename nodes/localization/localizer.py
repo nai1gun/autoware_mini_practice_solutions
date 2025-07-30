@@ -82,8 +82,7 @@ class Localizer:
         current_velocity = TwistStamped()
         current_velocity.header.stamp = msg.header.stamp
         current_velocity.header.frame_id = "base_link"
-        current_velocity.twist.linear.x = msg.north_velocity
-        current_velocity.twist.linear.y = msg.east_velocity
+        current_velocity.twist.linear.x = (msg.north_velocity ** 2 + msg.east_velocity ** 2) ** 0.5
 
         self.current_velocity_pub.publish(current_velocity)
 
