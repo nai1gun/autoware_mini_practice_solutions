@@ -52,11 +52,10 @@ class Localizer:
         return yaw
 
     def transform_coordinates(self, msg):
-        # print(msg.latitude, msg.longitude)
         transformed_x, transformed_y = self.transformer.transform(msg.latitude, msg.longitude)
         substracted_x = transformed_x - self.origin_x
         substracted_y = transformed_y - self.origin_y
-        # print(f"x:{substracted_x} :{substracted_y}")
+
         # publish current pose
         current_pose_msg = PoseStamped()
         current_pose_msg.header.stamp = msg.header.stamp
@@ -69,11 +68,9 @@ class Localizer:
         azimuth_correction = self.utm_projection.get_factors(msg.longitude, msg.latitude).meridian_convergence
         
         azimuth_rad = math.radians(msg.azimuth)
-        # print(f"Azimuth:{msg.azimuth}")
-        # print(f"Azimuth rad:{azimuth_rad}")
-        # print(f"Correction:{azimuth_correction}")
+        correction_rad = math.radians(azimuth_correction)
         
-        yaw = self.convert_azimuth_to_yaw(azimuth_rad - azimuth_correction)
+        yaw = self.convert_azimuth_to_yaw(azimuth_rad - correction_rad)
 
         # Convert yaw to quaternion
         x, y, z, w = quaternion_from_euler(0, 0, yaw)
