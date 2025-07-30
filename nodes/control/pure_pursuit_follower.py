@@ -60,7 +60,7 @@ class PurePursuitFollower:
 
         steering_angle = np.arctan2(2 * self.wheel_base * np.sin(lookahead_heading - heading), dynamic_lookahead_distance)
 
-        # Test publish
+        # Publish the vehicle command
         vehicle_cmd = VehicleCmd()
         vehicle_cmd.ctrl_cmd.steering_angle = steering_angle
         vehicle_cmd.ctrl_cmd.linear_velocity = 10.0
