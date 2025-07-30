@@ -27,8 +27,6 @@ class PurePursuitFollower:
         rospy.Subscriber('path', Path, self.path_callback, queue_size=1)
         rospy.Subscriber('/localization/current_pose', PoseStamped, self.current_pose_callback, queue_size=1)
 
-        
-
     def path_callback(self, msg):
         # convert waypoints to shapely linestring
         path_linestring = LineString([(w.position.x, w.position.y) for w in msg.waypoints])
@@ -66,21 +64,12 @@ class PurePursuitFollower:
 
         dynamic_lookahead_distance = distance(current_pose, lookahead_point)
 
-        print(f"Distance from path start: {d_ego_from_path_start:.2f} m")
-        print(f"Current heading: {np.degrees(heading):.2f} degrees")
-        print(f"Lookahead point: {lookahead_point.x:.2f}, {lookahead_point.y:.2f}")
-        print(f"Lookahead heading: {np.degrees(lookahead_heading):.2f} degrees")
-        print(f"Dynamic lookahead distance: {dynamic_lookahead_distance:.2f} m")
-
         steering_angle = np.arctan2(2 * self.wheel_base * np.sin(lookahead_heading - heading), dynamic_lookahead_distance)
 
         # Calculate the velocity based on the distance from the path start
         linear_velocity = 0.0
         if self.distance_to_velocity_interpolator is not None:
             linear_velocity = self.distance_to_velocity_interpolator(d_ego_from_path_start)
-
-        print(f"Linear velocity: {linear_velocity:.2f} m")
-            
 
         # Publish the vehicle command
         vehicle_cmd = VehicleCmd()
