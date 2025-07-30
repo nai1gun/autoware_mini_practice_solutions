@@ -1,3 +1,4 @@
+#!/usr/bin/env python3
 import rospy
 
 from autoware_mini.msg import Path
