@@ -12,6 +12,9 @@ class PurePursuitFollower:
 
         # Parameters
         self.path_linstring = None
+        self.lookahead_distance = rospy.get_param('~lookahead_distance', 5.0)
+        self.wheel_base = rospy.get_param('/vehicle/wheel_base', 1.0)
+        print(f"Lookahead distance: {self.lookahead_distance} m, Wheel base: {self.wheel_base} m")
 
         # Publishers
         self.vehicle_cmd_publisher = rospy.Publisher('/control/vehicle_cmd', VehicleCmd, queue_size=10)
@@ -35,7 +38,7 @@ class PurePursuitFollower:
             rospy.logwarn("Path not received yet.")
             return
         d_ego_from_path_start = self.path_linstring.project(current_pose)
-        print(f"Distance from path start: {d_ego_from_path_start:.2f} m")
+        # print(f"Distance from path start: {d_ego_from_path_start:.2f} m")
 
         # Test publish
         vehicle_cmd = VehicleCmd()
