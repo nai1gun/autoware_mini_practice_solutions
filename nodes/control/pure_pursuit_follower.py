@@ -18,7 +18,6 @@ class PurePursuitFollower:
         self.lookahead_distance = rospy.get_param('~lookahead_distance', 1.0)
         self.wheel_base = rospy.get_param('/vehicle/wheel_base', 3.0)
         self.distance_to_velocity_interpolator = None
-        print(f"Lookahead distance: {self.lookahead_distance} m, Wheel base: {self.wheel_base} m")
 
         # Publishers
         self.vehicle_cmd_publisher = rospy.Publisher('/control/vehicle_cmd', VehicleCmd, queue_size=10)
@@ -48,26 +47,30 @@ class PurePursuitFollower:
 
     def current_pose_callback(self, msg):
         current_pose = Point([msg.pose.position.x, msg.pose.position.y])
+
+        # Default values for velocity and steering angle
+        linear_velocity = 0.0
+        steering_angle = 0.0
+
         if self.path_linstring is None:
             rospy.logwarn("Path not received yet.")
-            return
-        d_ego_from_path_start = self.path_linstring.project(current_pose)
-        
-        # using euler_from_quaternion to get the heading angle
-        _, _, heading = euler_from_quaternion([msg.pose.orientation.x, msg.pose.orientation.y, msg.pose.orientation.z, msg.pose.orientation.w])
-        
-        # calculate the lookahead point
-        lookahead_point = self.path_linstring.interpolate(d_ego_from_path_start + self.lookahead_distance)     
-        
-        # lookahead point heading calculation
-        lookahead_heading = np.arctan2(lookahead_point.y - current_pose.y, lookahead_point.x - current_pose.x)
+        else:
+            d_ego_from_path_start = self.path_linstring.project(current_pose)
+            
+            # using euler_from_quaternion to get the heading angle
+            _, _, heading = euler_from_quaternion([msg.pose.orientation.x, msg.pose.orientation.y, msg.pose.orientation.z, msg.pose.orientation.w])
+            
+            # calculate the lookahead point
+            lookahead_point = self.path_linstring.interpolate(d_ego_from_path_start + self.lookahead_distance)     
+            
+            # lookahead point heading calculation
+            lookahead_heading = np.arctan2(lookahead_point.y - current_pose.y, lookahead_point.x - current_pose.x)
 
-        dynamic_lookahead_distance = distance(current_pose, lookahead_point)
+            dynamic_lookahead_distance = distance(current_pose, lookahead_point)
 
-        steering_angle = np.arctan2(2 * self.wheel_base * np.sin(lookahead_heading - heading), dynamic_lookahead_distance)
+            steering_angle = np.arctan2(2 * self.wheel_base * np.sin(lookahead_heading - heading), dynamic_lookahead_distance)
 
         # Calculate the velocity based on the distance from the path start
-        linear_velocity = 0.0
         if self.distance_to_velocity_interpolator is not None:
             linear_velocity = self.distance_to_velocity_interpolator(d_ego_from_path_start)
 
