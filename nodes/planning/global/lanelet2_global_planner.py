@@ -2,11 +2,12 @@
 import rospy
 from geometry_msgs.msg import PoseStamped
 from autoware_mini.msg import Path, Waypoint
+from shapely.geometry import LineString, Point
 import lanelet2
 from lanelet2.io import Origin, load
 from lanelet2.projection import UtmProjector
-from lanelet2.core import GPSPoint, BasicPoint2d, BoundingBox2d, BasicPoint3d
-from lanelet2.geometry import length2d, findNearest, project, findWithin2d, distance
+from lanelet2.core import BasicPoint2d
+from lanelet2.geometry import findNearest, distance
 
 class Lanelet2GlobalPlanner:
     """
@@ -56,12 +57,6 @@ class Lanelet2GlobalPlanner:
         return lanelet2_map
     
     def goal_point_callback(self, msg):
-        # loginfo message about receiving the goal point
-        rospy.loginfo("%s - goal position (%f, %f, %f) orientation (%f, %f, %f, %f) in %s frame", rospy.get_name(),
-                    msg.pose.position.x, msg.pose.position.y, msg.pose.position.z,
-                    msg.pose.orientation.x, msg.pose.orientation.y, msg.pose.orientation.z,
-                    msg.pose.orientation.w, msg.header.frame_id)
-        
         self.goal_point = BasicPoint2d(msg.pose.position.x, msg.pose.position.y)
         
         # traffic rules
@@ -90,6 +85,7 @@ class Lanelet2GlobalPlanner:
         
         # Convert lanelet sequence to waypoints and publish
         waypoints = self.lanelet_sequence_to_waypoints(path_no_lane_change)
+        waypoints = self.align_path_end_with_goal(waypoints, self.goal_point)
         self.publish_global_path(waypoints, msg.header.stamp)
 
     def current_pose_callback(self, msg):
@@ -141,6 +137,21 @@ class Lanelet2GlobalPlanner:
         path.header.stamp = timestamp
         path.waypoints = waypoints
         self.waypoints_pub.publish(path)
+
+    def align_path_end_with_goal(self, waypoints, goal_point):
+        # Convert waypoints to LineString
+        path_line = LineString([(wp.position.x, wp.position.y) for wp in waypoints])
+        # Project goal point onto path
+        goal_shapely = Point(goal_point.x, goal_point.y)
+        projected_dist = path_line.project(goal_shapely)
+        projected_point = path_line.interpolate(projected_dist)
+        # Overwrite last waypoint with projected point
+        waypoints[-1].position.x = projected_point.x
+        waypoints[-1].position.y = projected_point.y
+        # Update self.goal_point as well
+        self.goal_point.x = projected_point.x
+        self.goal_point.y = projected_point.y
+        return waypoints
     
     def run(self):
         rospy.spin()
