@@ -29,6 +29,9 @@ class PurePursuitFollower:
     def path_callback(self, msg):
         if not msg.waypoints or len(msg.waypoints) == 0:
             self.stop_vehicle(msg.header.stamp)
+            # Clear previous path and interpolator to prevent further movement
+            self.path_linstring = None
+            self.distance_to_velocity_interpolator = None
             return
         # convert waypoints to shapely linestring
         path_linestring = LineString([(w.position.x, w.position.y) for w in msg.waypoints])
