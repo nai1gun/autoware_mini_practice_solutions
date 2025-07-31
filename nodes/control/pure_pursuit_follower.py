@@ -76,18 +76,15 @@ class PurePursuitFollower:
             linear_velocity = self.distance_to_velocity_interpolator(d_ego_from_path_start)
 
         # Publish the vehicle command
+        self.publish_vehicle_cmd(steering_angle, linear_velocity, msg.header.stamp)
+
+    def stop_vehicle(self, timestamp):
+        self.publish_vehicle_cmd(0.0, 0.0, timestamp)
+
+    def publish_vehicle_cmd(self, steering_angle, linear_velocity, timestamp):
         vehicle_cmd = VehicleCmd()
         vehicle_cmd.ctrl_cmd.steering_angle = steering_angle
         vehicle_cmd.ctrl_cmd.linear_velocity = linear_velocity
-        vehicle_cmd.header.stamp = msg.header.stamp
-        vehicle_cmd.header.frame_id = "base_link"
-        self.vehicle_cmd_publisher.publish(vehicle_cmd)
-
-    def stop_vehicle(self, timestamp):
-        # Publish a stop command
-        vehicle_cmd = VehicleCmd()
-        vehicle_cmd.ctrl_cmd.steering_angle = 0.0
-        vehicle_cmd.ctrl_cmd.linear_velocity = 0.0
         vehicle_cmd.header.stamp = timestamp
         vehicle_cmd.header.frame_id = "base_link"
         self.vehicle_cmd_publisher.publish(vehicle_cmd)
