@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 import rospy
+from geometry_msgs.msg import PoseStamped
 from lanelet2.io import Origin, load
 from lanelet2.projection import UtmProjector
 from lanelet2.core import GPSPoint, BasicPoint2d, BoundingBox2d, BasicPoint3d
@@ -18,6 +19,9 @@ class Lanelet2GlobalPlanner:
         self.lanelet2_map = self.load_lanelet2_map(lanelet2_map_path)
         print(f"Loaded lanelet2 map from: {lanelet2_map_path}")
         print(f"Type of lanelet2 map: {type(self.lanelet2_map)} ")
+
+        # Subscribers
+        rospy.Subscriber('/move_base_simple/goal', PoseStamped, self.goal_point_callback, queue_size=10)
 
     def load_lanelet2_map(self, lanelet2_map_path):
         """
@@ -45,6 +49,13 @@ class Lanelet2GlobalPlanner:
         lanelet2_map = load(lanelet2_map_path, projector)
 
         return lanelet2_map
+    
+    def goal_point_callback(self, msg):
+        # loginfo message about receiving the goal point
+        rospy.loginfo("%s - goal position (%f, %f, %f) orientation (%f, %f, %f, %f) in %s frame", rospy.get_name(),
+                    msg.pose.position.x, msg.pose.position.y, msg.pose.position.z,
+                    msg.pose.orientation.x, msg.pose.orientation.y, msg.pose.orientation.z,
+                    msg.pose.orientation.w, msg.header.frame_id)
     
     def run(self):
         rospy.spin()
