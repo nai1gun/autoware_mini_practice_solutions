@@ -6,7 +6,7 @@ import lanelet2
 from lanelet2.io import Origin, load
 from lanelet2.projection import UtmProjector
 from lanelet2.core import GPSPoint, BasicPoint2d, BoundingBox2d, BasicPoint3d
-from lanelet2.geometry import length2d, findNearest, project, findWithin2d
+from lanelet2.geometry import length2d, findNearest, project, findWithin2d, distance
 
 class Lanelet2GlobalPlanner:
     """
@@ -15,20 +15,20 @@ class Lanelet2GlobalPlanner:
     """
         
     def __init__(self):
-        print("Initializing Lanelet2 Global Planner...")
         # Load the lanelet2 map
         lanelet2_map_path = rospy.get_param('~lanelet2_map_path')
         self.lanelet2_map = self.load_lanelet2_map(lanelet2_map_path)
-        print(f"Loaded lanelet2 map from: {lanelet2_map_path}")
-        print(f"Type of lanelet2 map: {type(self.lanelet2_map)} ")
 
         # Initialize goal_point to None
         self.goal_point = None
         self.graph = None
 
         # Load output_frame and speed_limit from parameters
-        self.output_frame = rospy.get_param('~output_frame', 'map')
-        self.speed_limit = rospy.get_param('~speed_limit', 40.0)  # km/h
+        self.speed_limit = rospy.get_param('~speed_limit')  # km/h
+        self.output_frame = rospy.get_param('~/planning/lanelet2_global_planner/output_frame')
+
+        # Initialize Distance to goal limit
+        self.distance_to_goal_limit = rospy.get_param('~/planning/lanelet2_global_planner/distance_to_goal_limit')  # m
 
         #Publishers
         self.waypoints_pub = rospy.Publisher('global_path', Path, queue_size=1, latch=True)
@@ -87,9 +87,7 @@ class Lanelet2GlobalPlanner:
         if not path_no_lane_change:
             rospy.logwarn("No path found from start to goal lanelet without lane change.")
             return
-        # loginfo message about the path
-        rospy.loginfo("%s - Found path with %d lanelets from start to goal lanelet without lane change.", rospy.get_name(), len(path_no_lane_change))
-
+        
         # Convert lanelet sequence to waypoints and publish
         waypoints = self.lanelet_sequence_to_waypoints(path_no_lane_change)
         self.publish_global_path(waypoints, msg.header.stamp)
@@ -98,6 +96,13 @@ class Lanelet2GlobalPlanner:
         self.current_location = BasicPoint2d(msg.pose.position.x, msg.pose.position.y)
         # get start and end lanelets
         self.start_lanelet = findNearest(self.lanelet2_map.laneletLayer, self.current_location, 1)[0][1]
+
+        if self.goal_point is None:
+            return
+
+        distance_to_goal = distance(self.current_location, self.goal_point)
+        if distance_to_goal <= self.distance_to_goal_limit:
+            self.publish_global_path([], msg.header.stamp)  # Publish an empty path to indicate goal reached
 
     def lanelet_sequence_to_waypoints(self, lanelet_sequence):
         waypoints = []

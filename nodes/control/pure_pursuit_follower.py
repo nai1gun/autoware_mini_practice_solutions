@@ -27,6 +27,9 @@ class PurePursuitFollower:
         rospy.Subscriber('/localization/current_pose', PoseStamped, self.current_pose_callback, queue_size=1)
 
     def path_callback(self, msg):
+        if not msg.waypoints or len(msg.waypoints) == 0:
+            self.stop_vehicle(msg.header.stamp)
+            return
         # convert waypoints to shapely linestring
         path_linestring = LineString([(w.position.x, w.position.y) for w in msg.waypoints])
         # prepare path - creates spatial tree, making the spatial queries more efficient
@@ -52,9 +55,7 @@ class PurePursuitFollower:
         linear_velocity = 0.0
         steering_angle = 0.0
 
-        if self.path_linstring is None:
-            rospy.logwarn("Path not received yet.")
-        else:
+        if self.path_linstring is not None:
             d_ego_from_path_start = self.path_linstring.project(current_pose)
             
             # using euler_from_quaternion to get the heading angle
@@ -79,6 +80,15 @@ class PurePursuitFollower:
         vehicle_cmd.ctrl_cmd.steering_angle = steering_angle
         vehicle_cmd.ctrl_cmd.linear_velocity = linear_velocity
         vehicle_cmd.header.stamp = msg.header.stamp
+        vehicle_cmd.header.frame_id = "base_link"
+        self.vehicle_cmd_publisher.publish(vehicle_cmd)
+
+    def stop_vehicle(self, timestamp):
+        # Publish a stop command
+        vehicle_cmd = VehicleCmd()
+        vehicle_cmd.ctrl_cmd.steering_angle = 0.0
+        vehicle_cmd.ctrl_cmd.linear_velocity = 0.0
+        vehicle_cmd.header.stamp = timestamp
         vehicle_cmd.header.frame_id = "base_link"
         self.vehicle_cmd_publisher.publish(vehicle_cmd)
 
