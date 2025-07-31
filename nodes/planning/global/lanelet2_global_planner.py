@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 import rospy
 from geometry_msgs.msg import PoseStamped
+from autoware_mini.msg import Path, Waypoint
 import lanelet2
 from lanelet2.io import Origin, load
 from lanelet2.projection import UtmProjector
@@ -23,6 +24,14 @@ class Lanelet2GlobalPlanner:
 
         # Initialize goal_point to None
         self.goal_point = None
+        self.graph = None
+
+        # Load output_frame and speed_limit from parameters
+        self.output_frame = rospy.get_param('~output_frame', 'map')
+        self.speed_limit = rospy.get_param('~speed_limit', 40.0)  # km/h
+
+        #Publishers
+        self.waypoints_pub = rospy.Publisher('global_path', Path, queue_size=1, latch=True)
 
         # Subscribers
         rospy.Subscriber('/move_base_simple/goal', PoseStamped, self.goal_point_callback, queue_size=10)
@@ -61,16 +70,12 @@ class Lanelet2GlobalPlanner:
         # routing graph
         self.graph = lanelet2.routing.RoutingGraph(self.lanelet2_map, traffic_rules)
 
-    def current_pose_callback(self, msg):
-        self.current_location = BasicPoint2d(msg.pose.position.x, msg.pose.position.y)
-        # get start and end lanelets
-        start_lanelet = findNearest(self.lanelet2_map.laneletLayer, self.current_location, 1)[0][1]
-        if not self.goal_point:
-            rospy.logwarn("Goal point not received yet.")
-            return
         goal_lanelet = findNearest(self.lanelet2_map.laneletLayer, self.goal_point, 1)[0][1]
-        # find routing graph
-        route = self.graph.getRoute(start_lanelet, goal_lanelet, 0, True)
+        
+        if not self.start_lanelet:
+            rospy.logwarn("Start lanelet not set. Cannot plan route.")
+            return
+        route = self.graph.getRoute(self.start_lanelet, goal_lanelet, 0, True)
         if not route:
             rospy.logwarn("No route found from start to goal lanelet.")
             return
@@ -78,13 +83,59 @@ class Lanelet2GlobalPlanner:
         # find shortest path
         path = route.shortestPath()
         # This returns LaneletSequence to a point where a lane change would be necessary to continue
-        path_no_lane_change = path.getRemainingLane(start_lanelet)
+        path_no_lane_change = path.getRemainingLane(self.start_lanelet)
         if not path_no_lane_change:
             rospy.logwarn("No path found from start to goal lanelet without lane change.")
             return
         # loginfo message about the path
         rospy.loginfo("%s - Found path with %d lanelets from start to goal lanelet without lane change.", rospy.get_name(), len(path_no_lane_change))
 
+        # Convert lanelet sequence to waypoints and publish
+        waypoints = self.lanelet_sequence_to_waypoints(path_no_lane_change)
+        self.publish_global_path(waypoints, msg.header.stamp)
+
+    def current_pose_callback(self, msg):
+        self.current_location = BasicPoint2d(msg.pose.position.x, msg.pose.position.y)
+        # get start and end lanelets
+        self.start_lanelet = findNearest(self.lanelet2_map.laneletLayer, self.current_location, 1)[0][1]
+
+    def lanelet_sequence_to_waypoints(self, lanelet_sequence):
+        waypoints = []
+        last_point = None
+        speed_limit_mps = self.speed_limit * 1000.0 / 3600.0  # Convert km/h to m/s
+
+        for lanelet in lanelet_sequence:
+            # Get speed_ref if available, else use speed_limit
+            if 'speed_ref' in lanelet.attributes:
+                speed = float(lanelet.attributes['speed_ref'])
+                speed = min(speed, self.speed_limit)
+            else:
+                speed = self.speed_limit
+            speed_mps = speed * 1000.0 / 3600.0
+
+            # Iterate over centerline points
+            for _, point in enumerate(lanelet.centerline):
+                # Avoid overlapping points between lanelets
+                if last_point is not None and point.x == last_point.x and point.y == last_point.y and point.z == last_point.z:
+                    continue
+                waypoint = Waypoint()
+                waypoint.position.x = point.x
+                waypoint.position.y = point.y
+                waypoint.position.z = point.z
+                waypoint.speed = min(speed_mps, speed_limit_mps)
+                waypoints.append(waypoint)
+                last_point = point
+
+        return waypoints
+    
+    def publish_global_path(self, waypoints, timestamp=None):
+        if not timestamp:
+            timestamp = rospy.Time.now()
+        path = Path()
+        path.header.frame_id = self.output_frame
+        path.header.stamp = timestamp
+        path.waypoints = waypoints
+        self.waypoints_pub.publish(path)
     
     def run(self):
         rospy.spin()

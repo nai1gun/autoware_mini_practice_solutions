@@ -11,6 +11,7 @@ safety_box_length: 5.0          # m
 default_left_width: 1.4         # m
 default_right_width: 1.4        # m
 local_path_length: 100
+speed_limit: 40.0               # km/h
 
 lanelet2_map_visualizer:
   use_map_extraction: False # extract smaller map area around the ego vehicle for visualization
