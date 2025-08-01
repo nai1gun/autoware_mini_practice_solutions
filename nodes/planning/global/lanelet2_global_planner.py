@@ -74,14 +74,12 @@ class Lanelet2GlobalPlanner:
 
         # find shortest path
         path = route.shortestPath()
-        # This returns LaneletSequence to a point where a lane change would be necessary to continue
-        path_no_lane_change = path.getRemainingLane(start_lanelet)
-        if not path_no_lane_change:
-            rospy.logwarn("No path found from start to goal lanelet without lane change.")
+        if not path or len(path) == 0:
+            rospy.logwarn("No path found from start to goal lanelet.")
             return
         
         # Convert lanelet sequence to waypoints and publish
-        waypoints = self.lanelet_sequence_to_waypoints(path_no_lane_change)
+        waypoints = self.lanelet_sequence_to_waypoints(path)
         waypoints = self.align_path_end_with_goal(waypoints, self.goal_point)
         self.publish_global_path(waypoints, msg.header.stamp)
 
