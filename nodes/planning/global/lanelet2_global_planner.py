@@ -42,6 +42,12 @@ class Lanelet2GlobalPlanner:
         # Initialize Distance to goal limit
         self.distance_to_goal_limit = rospy.get_param('~/planning/lanelet2_global_planner/distance_to_goal_limit')  # m
 
+        # traffic rules
+        traffic_rules = lanelet2.traffic_rules.create(lanelet2.traffic_rules.Locations.Germany,
+                                                lanelet2.traffic_rules.Participants.VehicleTaxi)
+        # routing graph
+        self.graph = lanelet2.routing.RoutingGraph(self.lanelet2_map, traffic_rules)
+
         #Publishers
         self.waypoints_pub = rospy.Publisher('global_path', Path, queue_size=1, latch=True)
 
@@ -51,12 +57,6 @@ class Lanelet2GlobalPlanner:
     
     def goal_point_callback(self, msg):
         self.goal_point = BasicPoint2d(msg.pose.position.x, msg.pose.position.y)
-        
-        # traffic rules
-        traffic_rules = lanelet2.traffic_rules.create(lanelet2.traffic_rules.Locations.Germany,
-                                                lanelet2.traffic_rules.Participants.VehicleTaxi)
-        # routing graph
-        self.graph = lanelet2.routing.RoutingGraph(self.lanelet2_map, traffic_rules)
 
         goal_lanelet = findNearest(self.lanelet2_map.laneletLayer, self.goal_point, 1)[0][1]
         
