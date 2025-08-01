@@ -18,7 +18,18 @@ class Lanelet2GlobalPlanner:
     def __init__(self):
         # Load the lanelet2 map
         lanelet2_map_path = rospy.get_param('~lanelet2_map_path')
-        self.lanelet2_map = self.load_lanelet2_map(lanelet2_map_path)
+        coordinate_transformer = rospy.get_param("/localization/coordinate_transformer")
+        use_custom_origin = rospy.get_param("/localization/use_custom_origin")
+        utm_origin_lat = rospy.get_param("/localization/utm_origin_lat")
+        utm_origin_lon = rospy.get_param("/localization/utm_origin_lon")
+
+        # Load the map using Lanelet2
+        if coordinate_transformer == "utm":
+            projector = UtmProjector(Origin(utm_origin_lat, utm_origin_lon), use_custom_origin, False)
+        else:
+            raise ValueError('Unknown coordinate_transformer for loading the Lanelet2 map ("utm" should be used): ' + coordinate_transformer)
+
+        self.lanelet2_map = load(lanelet2_map_path, projector)
 
         # Initialize goal_point to None
         self.goal_point = None
@@ -37,24 +48,6 @@ class Lanelet2GlobalPlanner:
         # Subscribers
         rospy.Subscriber('/move_base_simple/goal', PoseStamped, self.goal_point_callback, queue_size=10)
         rospy.Subscriber('/localization/current_pose', PoseStamped, self.current_pose_callback, queue_size=1)
-
-    def load_lanelet2_map(self, lanelet2_map_path):
-
-        # get parameters
-        coordinate_transformer = rospy.get_param("/localization/coordinate_transformer")
-        use_custom_origin = rospy.get_param("/localization/use_custom_origin")
-        utm_origin_lat = rospy.get_param("/localization/utm_origin_lat")
-        utm_origin_lon = rospy.get_param("/localization/utm_origin_lon")
-
-        # Load the map using Lanelet2
-        if coordinate_transformer == "utm":
-            projector = UtmProjector(Origin(utm_origin_lat, utm_origin_lon), use_custom_origin, False)
-        else:
-            raise ValueError('Unknown coordinate_transformer for loading the Lanelet2 map ("utm" should be used): ' + coordinate_transformer)
-
-        lanelet2_map = load(lanelet2_map_path, projector)
-
-        return lanelet2_map
     
     def goal_point_callback(self, msg):
         self.goal_point = BasicPoint2d(msg.pose.position.x, msg.pose.position.y)
