@@ -58,12 +58,16 @@ class Lanelet2GlobalPlanner:
     def goal_point_callback(self, msg):
         self.goal_point = BasicPoint2d(msg.pose.position.x, msg.pose.position.y)
 
-        goal_lanelet = findNearest(self.lanelet2_map.laneletLayer, self.goal_point, 1)[0][1]
-        
-        if not self.start_lanelet:
-            rospy.logwarn("Start lanelet not set. Cannot plan route.")
+        if not self.current_location:
+            rospy.logwarn("Current location not set. Cannot plan route.")
             return
-        route = self.graph.getRoute(self.start_lanelet, goal_lanelet, 0, True)
+
+        # get start and end lanelets
+        start_lanelet = findNearest(self.lanelet2_map.laneletLayer, self.current_location, 1)[0][1]
+
+        goal_lanelet = findNearest(self.lanelet2_map.laneletLayer, self.goal_point, 1)[0][1]
+
+        route = self.graph.getRoute(start_lanelet, goal_lanelet, 0, True)
         if not route:
             rospy.logwarn("No route found from start to goal lanelet.")
             return
@@ -71,7 +75,7 @@ class Lanelet2GlobalPlanner:
         # find shortest path
         path = route.shortestPath()
         # This returns LaneletSequence to a point where a lane change would be necessary to continue
-        path_no_lane_change = path.getRemainingLane(self.start_lanelet)
+        path_no_lane_change = path.getRemainingLane(start_lanelet)
         if not path_no_lane_change:
             rospy.logwarn("No path found from start to goal lanelet without lane change.")
             return
@@ -83,8 +87,6 @@ class Lanelet2GlobalPlanner:
 
     def current_pose_callback(self, msg):
         self.current_location = BasicPoint2d(msg.pose.position.x, msg.pose.position.y)
-        # get start and end lanelets
-        self.start_lanelet = findNearest(self.lanelet2_map.laneletLayer, self.current_location, 1)[0][1]
 
         if self.goal_point is None:
             return
