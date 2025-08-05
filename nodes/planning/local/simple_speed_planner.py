@@ -94,14 +94,6 @@ class SpeedPlanner:
                     dist_along_path = local_path_linestring.project(pt_xy)
                     collision_points_distances.append(dist_along_path)
 
-                    # Calculate target velocity using v = sqrt(v0^2 + 2*a*s)
-                    v0 = math.hypot(pt['vx'], pt['vy'])
-                    a = abs(self.default_deceleration)
-                    s = dist_along_path - self.distance_to_car_front - pt['distance_to_stop']
-                    under_sqrt = v0**2 + 2*a*s
-                    v = math.sqrt(max(0.0, under_sqrt))
-                    target_velocities.append(v)
-
                     # Get heading at this distance
                     heading = self.get_heading_at_distance(local_path_linestring, dist_along_path)
                     # Project velocity vector to heading
@@ -109,21 +101,28 @@ class SpeedPlanner:
                     projected_velocity = self.project_vector_to_heading(heading, velocity_vector)
                     collision_point_velocities.append(projected_velocity)
                     # Print actual speed and projected speed
-                    print(f"Collision point at distance {dist_along_path:.2f}: actual speed = {v0:.2f}, speed along heading = {projected_velocity:.2f}")
+                    # print(f"Collision point at distance {dist_along_path:.2f}: actual speed = {v0:.2f}, speed along heading = {projected_velocity:.2f}")
+
+                # Convert to numpy arrays for vectorized math
+                collision_points_distances = np.array(collision_points_distances)
+                collision_point_velocities = np.array(collision_point_velocities)
+                a = abs(self.default_deceleration)
+                s = collision_points_distances - self.distance_to_car_front - np.array([pt['distance_to_stop'] for pt in collision_points])
+                under_sqrt = collision_point_velocities**2 + 2 * a * s
+                target_velocities = np.sqrt(np.maximum(0.0, under_sqrt))
 
                 # rospy.loginfo("Target velocities # along path: %s", target_velocities)
                 # Find the minimum target velocity (most restrictive)
-                if target_velocities:
-                    # Find the index of the minimum target velocity
+                if len(target_velocities) > 0:
                     min_idx = int(np.argmin(target_velocities))
                     min_target_velocity = target_velocities[min_idx]
-                    # Distance from local path start to the stopping point (where the car should stop)
+                    closest_object_distance = collision_points[min_idx]['distance_to_stop']
+                    closest_object_velocity = collision_point_velocities[min_idx]
                     stopping_point_distance = collision_points_distances[min_idx] - collision_points[min_idx]['distance_to_stop']
                     stopping_point_distance = max(0.0, stopping_point_distance)
-                    # Distance from car front to the obstacle when stopped (should be close to braking_safety_distance_obstacle)
-                    closest_object_distance = collision_points_distances[min_idx]
                     collision_point_category = int(collision_points[min_idx]['category'])
-                    closest_object_velocity = math.hypot(collision_points[min_idx]['vx'], collision_points[min_idx]['vy'])
+                    # print(collision_points.dtype)
+                    # print(collision_points[min_idx])
                 else:
                     min_target_velocity = 0.0
                     stopping_point_distance = 0.0
