@@ -7,12 +7,10 @@ import traceback
 import shapely
 import numpy as np
 import threading
-from numpy.lib.recfunctions import structured_to_unstructured
 from ros_numpy import numpify
 from autoware_mini.msg import Path, Log
 from sensor_msgs.msg import PointCloud2
 from geometry_msgs.msg import PoseStamped, TwistStamped, Vector3
-from autoware_mini.geometry import project_vector_to_heading, get_distance_between_two_points_2d
 from shapely.geometry import LineString, Point, Polygon
 
 
