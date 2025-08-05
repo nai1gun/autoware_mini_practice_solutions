@@ -94,12 +94,8 @@ class LocalPathExtractor:
 
            # Calculate cumulative distances along the global path (2D)
            diffs = np.diff(global_path_xyz[:, :2], axis=0)
-           rospy.loginfo('Differences between consecutive points #: %s, first 5" %s', len(diffs), diffs[0:5])
            segment_lengths = np.linalg.norm(diffs, axis=1)
-           rospy.loginfo('Segment lengths #: %s, first 5: %s', len(segment_lengths), segment_lengths[0:5])
            global_path_distances = np.insert(np.cumsum(segment_lengths), 0, 0.0)
-           rospy.loginfo('Global path #: %s first 5 distances: %s', len(global_path_distances), global_path_distances[0:5])
-           rospy.loginfo('Global path #: %s first 5 velocities: %s', len(global_path_velocities), global_path_velocities[0:5])
 
            # Create interpolator for velocities along the path
            global_path_velocities_interpolator = interp1d(
@@ -117,8 +113,6 @@ class LocalPathExtractor:
            local_path = Path()
            local_path.header = current_pose.header
            local_path.waypoints = local_path_waypoints
-           print('Local path waypoints:', len(local_path.waypoints))
-           print('Local path first 5 waypoints:', local_path.waypoints[0:5])  # Print first 5 waypoints for brevity
 
            self.local_path_pub.publish(local_path)
        except Exception as e:
