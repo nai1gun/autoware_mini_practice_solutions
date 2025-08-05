@@ -87,6 +87,8 @@ class SpeedPlanner:
                 # 2. Calculate distances along the path for each collision point
                 collision_points_distances = []
                 target_velocities = []
+                collision_point_velocities = []
+
                 for pt in collision_points:
                     pt_xy = Point(pt['x'], pt['y'])
                     dist_along_path = local_path_linestring.project(pt_xy)
@@ -99,7 +101,15 @@ class SpeedPlanner:
                     under_sqrt = v0**2 + 2*a*s
                     v = math.sqrt(max(0.0, under_sqrt))
                     target_velocities.append(v)
-                    # rospy.loginfo("Collision point at distance %f with target velocity %f, v0: %f, s: %f, a: %f", dist_along_path, v, v0, s, a)
+
+                    # Get heading at this distance
+                    heading = self.get_heading_at_distance(local_path_linestring, dist_along_path)
+                    # Project velocity vector to heading
+                    velocity_vector = Vector3(pt['vx'], pt['vy'], pt['vz'])
+                    projected_velocity = self.project_vector_to_heading(heading, velocity_vector)
+                    collision_point_velocities.append(projected_velocity)
+                    # Print actual speed and projected speed
+                    print(f"Collision point at distance {dist_along_path:.2f}: actual speed = {v0:.2f}, speed along heading = {projected_velocity:.2f}")
 
                 # rospy.loginfo("Target velocities # along path: %s", target_velocities)
                 # Find the minimum target velocity (most restrictive)
