@@ -90,7 +90,7 @@ class LocalPathExtractor:
 
            ego_distance_from_global_path_start = global_path_linestring.project(current_position)
 
-           print('Ego distance from global path start:', ego_distance_from_global_path_start)
+           # print('Ego distance from global path start:', ego_distance_from_global_path_start)
 
            # Calculate cumulative distances along the global path (2D)
            diffs = np.diff(global_path_xyz[:, :2], axis=0)
