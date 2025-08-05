@@ -85,12 +85,12 @@ class CollisionPointsManager:
             if not path_buffer.intersects(obj_polygon):
                 continue
 
-            rospy.loginfo("Object %s intersects with the path buffer", obj.id)
-            rospy.loginfo("Object polygon: %s", obj_polygon)
+            # rospy.loginfo("Object %s intersects with the path buffer", obj.id)
+            # rospy.loginfo("Object polygon: %s", obj_polygon)
 
             intersection = path_buffer.intersection(obj_polygon)
             intersection_points = shapely.get_coordinates(intersection)
-            rospy.loginfo("Intersection points: %s", intersection_points)
+            # rospy.loginfo("Intersection points: %s", intersection_points)
 
             # Calculate object speed
             object_speed = math.hypot(obj.velocity.x, obj.velocity.y)
@@ -113,7 +113,7 @@ class CollisionPointsManager:
         self.local_path_collision_pub.publish(collision_msg)
 
         # Print for validation
-        print("collision_points array:", collision_points)
+        # print("collision_points array:", collision_points)
 
     def run(self):
         rospy.spin()
