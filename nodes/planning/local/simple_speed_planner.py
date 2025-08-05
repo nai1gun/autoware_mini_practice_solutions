@@ -7,10 +7,12 @@ import traceback
 import shapely
 import numpy as np
 import threading
+from numpy.lib.recfunctions import structured_to_unstructured
 from ros_numpy import numpify
 from autoware_mini.msg import Path, Log
 from sensor_msgs.msg import PointCloud2
 from geometry_msgs.msg import PoseStamped, TwistStamped, Vector3
+from autoware_mini.geometry import project_vector_to_heading, get_distance_between_two_points_2d
 from shapely.geometry import LineString, Point, Polygon
 
 
@@ -93,7 +95,7 @@ class SpeedPlanner:
                     # Calculate target velocity using v = sqrt(v0^2 + 2*a*s)
                     v0 = math.hypot(pt['vx'], pt['vy'])
                     a = abs(self.default_deceleration)
-                    s = dist_along_path
+                    s = dist_along_path - self.distance_to_car_front - pt['distance_to_stop']
                     under_sqrt = v0**2 + 2*a*s
                     v = math.sqrt(max(0.0, under_sqrt))
                     target_velocities.append(v)
@@ -105,11 +107,16 @@ class SpeedPlanner:
                     # Find the index of the minimum target velocity
                     min_idx = int(np.argmin(target_velocities))
                     min_target_velocity = target_velocities[min_idx]
+                    # Distance from local path start to the stopping point (where the car should stop)
+                    stopping_point_distance = collision_points_distances[min_idx] - collision_points[min_idx]['distance_to_stop']
+                    stopping_point_distance = max(0.0, stopping_point_distance)
+                    # Distance from car front to the obstacle when stopped (should be close to braking_safety_distance_obstacle)
                     closest_object_distance = collision_points_distances[min_idx]
                     collision_point_category = int(collision_points[min_idx]['category'])
                     closest_object_velocity = math.hypot(collision_points[min_idx]['vx'], collision_points[min_idx]['vy'])
                 else:
                     min_target_velocity = 0.0
+                    stopping_point_distance = 0.0
                     closest_object_distance = 0.0
                     collision_point_category = 4
                     closest_object_velocity = 0.0
@@ -126,7 +133,7 @@ class SpeedPlanner:
                 path.closest_object_distance = closest_object_distance
                 path.closest_object_velocity = closest_object_velocity
                 path.is_blocked = True
-                path.stopping_point_distance = closest_object_distance
+                path.stopping_point_distance = stopping_point_distance
                 path.collision_point_category = collision_point_category
 
                 # print("Collision points distances along path:", collision_points_distances)
