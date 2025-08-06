@@ -171,6 +171,13 @@ class CameraTrafficLightDetector:
         # Print out the rois for validation
         print("ROIs:", rois)
 
+        # Process ROIs if any
+        if len(rois) > 0:
+            roi_images = self.create_roi_images(image, rois)
+            # run model and do prediction
+            predictions = self.model.run(None, {'conv2d_1_input': roi_images})[0]
+            print("Predictions:", predictions)
+
         # Publish ROI images
         self.publish_roi_images(image, rois, classes, scores, camera_image_msg.header.stamp)
 
@@ -230,7 +237,17 @@ class CameraTrafficLightDetector:
         return rois
 
     def create_roi_images(self, image, rois):
-        pass
+        roi_images = []
+        for _, _, min_u, max_u, min_v, max_v in rois:
+            # Select the area from the image defined by the min and max of u and v
+            roi = image[min_v:max_v, min_u:max_u]
+            # Resize to 128x128 pixels
+            roi_resized = cv2.resize(roi, (128, 128), interpolation=cv2.INTER_LINEAR)
+            # Convert to float32 and add to list
+            roi_images.append(roi_resized.astype(np.float32))
+        if len(roi_images) == 0:
+            return np.zeros((0, 128, 128, 3), dtype=np.float32)
+        return np.stack(roi_images, axis=0) / 255.0
 
     def publish_roi_images(self, image, rois, classes, scores, image_time_stamp):
 
