@@ -105,6 +105,7 @@ class SpeedPlanner:
 
                 # Convert to numpy arrays for vectorized math
                 collision_points_distances = np.array(collision_points_distances)
+                # print("Collision points distances along path:", collision_points_distances)
                 collision_point_velocities = np.array(collision_point_velocities)
                 a = abs(self.default_deceleration)
                 s = collision_points_distances - self.distance_to_car_front - np.array([pt['distance_to_stop'] for pt in collision_points])
@@ -116,7 +117,9 @@ class SpeedPlanner:
                 if len(target_velocities) > 0:
                     min_idx = int(np.argmin(target_velocities))
                     min_target_velocity = target_velocities[min_idx]
-                    closest_object_distance = collision_points[min_idx]['distance_to_stop']
+                    # rospy.loginfo("Minimum index: %d, points with min index: %s, distances with min index: %s, distance to stop: %f",
+                    #               min_idx, collision_points[min_idx], collision_points_distances[min_idx], collision_points[min_idx]['distance_to_stop'])
+                    closest_object_distance = collision_points_distances[min_idx]
                     closest_object_velocity = collision_point_velocities[min_idx]
                     stopping_point_distance = collision_points_distances[min_idx] - collision_points[min_idx]['distance_to_stop']
                     stopping_point_distance = max(0.0, stopping_point_distance)
