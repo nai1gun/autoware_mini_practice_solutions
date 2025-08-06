@@ -7,13 +7,11 @@ import traceback
 import shapely
 import numpy as np
 import threading
-from numpy.lib.recfunctions import structured_to_unstructured
 from ros_numpy import numpify
-from autoware_mini.msg import Path, Log
+from autoware_mini.msg import Path
 from sensor_msgs.msg import PointCloud2
 from geometry_msgs.msg import PoseStamped, TwistStamped, Vector3
-from autoware_mini.geometry import project_vector_to_heading, get_distance_between_two_points_2d
-from shapely.geometry import LineString, Point, Polygon
+from shapely.geometry import LineString, Point
 
 
 class SpeedPlanner:
@@ -22,7 +20,6 @@ class SpeedPlanner:
 
         # parameters
         self.default_deceleration = rospy.get_param("default_deceleration")
-        rospy.loginfo("Default deceleration: %f", self.default_deceleration)
         self.braking_reaction_time = rospy.get_param("braking_reaction_time")
         synchronization_queue_size = rospy.get_param("~synchronization_queue_size")
         synchronization_slop = rospy.get_param("~synchronization_slop")
@@ -64,7 +61,6 @@ class SpeedPlanner:
                 current_speed = self.current_speed
 
             if current_position is None or current_speed is None:
-                # rospy.logwarn_throttle(10, "%s - No collision points or current position/speed available", rospy.get_name())
                 return
             
             path = Path()
@@ -100,41 +96,30 @@ class SpeedPlanner:
                     velocity_vector = Vector3(pt['vx'], pt['vy'], pt['vz'])
                     projected_velocity = self.project_vector_to_heading(heading, velocity_vector)
                     collision_point_velocities.append(projected_velocity)
-                    # Print actual speed and projected speed
-                    # print(f"Collision point at distance {dist_along_path:.2f}: actual speed = {v0:.2f}, speed along heading = {projected_velocity:.2f}")
 
                 # Convert to numpy arrays for vectorized math
                 collision_points_distances = np.array(collision_points_distances)
-                # print("Collision points distances along path:", collision_points_distances)
                 collision_point_velocities = np.array(collision_point_velocities)
                 a = abs(self.default_deceleration)
                 s = collision_points_distances - self.distance_to_car_front - np.array([pt['distance_to_stop'] for pt in collision_points])
                 under_sqrt = collision_point_velocities**2 + 2 * a * s
                 target_velocities = np.sqrt(np.maximum(0.0, under_sqrt))
 
-                # rospy.loginfo("Target velocities # along path: %s", target_velocities)
                 # Find the minimum target velocity (most restrictive)
                 if len(target_velocities) > 0:
                     min_idx = int(np.argmin(target_velocities))
                     min_target_velocity = target_velocities[min_idx]
-                    # rospy.loginfo("Minimum index: %d, points with min index: %s, distances with min index: %s, distance to stop: %f",
-                    #               min_idx, collision_points[min_idx], collision_points_distances[min_idx], collision_points[min_idx]['distance_to_stop'])
                     closest_object_distance = collision_points_distances[min_idx]
                     closest_object_velocity = collision_point_velocities[min_idx]
                     stopping_point_distance = collision_points_distances[min_idx] - collision_points[min_idx]['distance_to_stop']
                     stopping_point_distance = max(0.0, stopping_point_distance)
                     collision_point_category = int(collision_points[min_idx]['category'])
-                    # print(collision_points.dtype)
-                    # print(collision_points[min_idx])
                 else:
                     min_target_velocity = 0.0
                     stopping_point_distance = 0.0
                     closest_object_distance = 0.0
                     collision_point_category = 4
                     closest_object_velocity = 0.0
-
-                # rospy.loginfo("Minimum target velocity: %f, closest object distance: %f, category: %d, velocity: %f",   
-                #              min_target_velocity, closest_object_distance, collision_point_category, closest_object_velocity)
 
                 # Overwrite local path waypoint velocities with the minimum target velocity
                 path.waypoints = local_path_msg.waypoints
@@ -147,8 +132,6 @@ class SpeedPlanner:
                 path.is_blocked = True
                 path.stopping_point_distance = stopping_point_distance
                 path.collision_point_category = collision_point_category
-
-                # print("Collision points distances along path:", collision_points_distances)
             
             self.local_path_pub.publish(path)
 

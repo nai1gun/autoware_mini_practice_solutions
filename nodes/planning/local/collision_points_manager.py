@@ -61,13 +61,9 @@ class CollisionPointsManager:
         
         local_path_linestring = LineString([(waypoint.position.x, waypoint.position.y) for waypoint in msg.waypoints])
 
-        # rospy.loginfo("Local path linestring created with %d points, first 5: %s", len(local_path_linestring.coords), local_path_linestring.coords[:5])
         # Buffer the local path
         path_buffer = local_path_linestring.buffer(self.safety_box_width / 2, cap_style='flat')  # flat caps
         shapely.prepare(path_buffer)
-        # rospy.loginfo("Prepared path buffer for intersection checks %s", path_buffer)
-
-        # rospy.loginfo("Detected %d objects, first 5 objects: %s", len(detected_objects), detected_objects[:5])
 
         for obj in detected_objects:
             if not hasattr(obj, 'convex_hull') or len(obj.convex_hull) < 9:
@@ -85,12 +81,8 @@ class CollisionPointsManager:
             if not path_buffer.intersects(obj_polygon):
                 continue
 
-            # rospy.loginfo("Object %s intersects with the path buffer", obj.id)
-            # rospy.loginfo("Object polygon: %s", obj_polygon)
-
             intersection = path_buffer.intersection(obj_polygon)
             intersection_points = shapely.get_coordinates(intersection)
-            # rospy.loginfo("Intersection points: %s", intersection_points)
 
             # Calculate object speed
             object_speed = math.hypot(obj.velocity.x, obj.velocity.y)
@@ -111,9 +103,6 @@ class CollisionPointsManager:
         collision_msg = msgify(PointCloud2, collision_points)
         collision_msg.header = msg.header
         self.local_path_collision_pub.publish(collision_msg)
-
-        # Print for validation
-        # print("collision_points array:", collision_points)
 
     def run(self):
         rospy.spin()

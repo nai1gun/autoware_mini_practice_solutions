@@ -78,8 +78,6 @@ class LocalPathExtractor:
            local_path = Path()
            local_path.header = current_pose.header
 
-           # print('Current pose:', current_pose.pose.position.x, current_pose.pose.position.y, current_pose.pose.position.z)
-
            if global_path_xyz is None:
                self.local_path_pub.publish(local_path)
                return
@@ -90,7 +88,6 @@ class LocalPathExtractor:
 
            ego_distance_from_global_path_start = global_path_linestring.project(current_position)
 
-           # print('Ego distance from global path start:', ego_distance_from_global_path_start)
 
            # Calculate cumulative distances along the global path (2D)
            diffs = np.diff(global_path_xyz[:, :2], axis=0)
