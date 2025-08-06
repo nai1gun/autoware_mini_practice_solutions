@@ -40,6 +40,8 @@ class CollisionPointsManager:
         self.stopped_speed_limit = rospy.get_param("stopped_speed_limit")
         self.braking_safety_distance_obstacle = rospy.get_param("~braking_safety_distance_obstacle")
         self.braking_safety_distance_stopline = rospy.get_param("~braking_safety_distance_stopline")
+        self.braking_safety_distance_goal = rospy.get_param("~braking_safety_distance_goal")
+        self.goal_point = None
 
         # variables
         self.detected_objects = None
@@ -65,6 +67,7 @@ class CollisionPointsManager:
         rospy.Subscriber('extracted_local_path', Path, self.path_callback, queue_size=1, tcp_nodelay=True)
         rospy.Subscriber('/detection/final_objects', DetectedObjectArray, self.detected_objects_callback, queue_size=1, buff_size=2**20, tcp_nodelay=True)
         rospy.Subscriber('/detection/traffic_light_status', TrafficLightResultArray, self.traffic_light_status_callback, queue_size=1, tcp_nodelay=True)
+        rospy.Subscriber('global_path', Path, self.global_path_callback, queue_size=1, tcp_nodelay=True)
 
     def detected_objects_callback(self, msg):
         self.detected_objects = msg.objects
@@ -147,6 +150,24 @@ class CollisionPointsManager:
                     )], dtype=DTYPE)
                 )
 
+        # --- Goal point collision point ---
+        if self.goal_point is not None:
+            # Create a small buffer around the goal point for intersection check
+            goal_shapely = shapely.geometry.Point(self.goal_point[0], self.goal_point[1])
+            goal_buffer = goal_shapely.buffer(self.safety_box_width / 2)
+            if path_buffer.intersects(goal_buffer):
+                # Use goal point as collision point
+                collision_points = np.append(
+                    collision_points,
+                    np.array([(
+                        self.goal_point[0], self.goal_point[1], self.goal_point[2],
+                        0.0, 0.0, 0.0,  # velocity
+                        self.braking_safety_distance_goal,
+                        np.inf,
+                        1  # category 1: goal point
+                    )], dtype=DTYPE)
+                )
+
         # Publish collision points
         collision_msg = msgify(PointCloud2, collision_points)
         collision_msg.header = msg.header
@@ -155,6 +176,14 @@ class CollisionPointsManager:
     def traffic_light_status_callback(self, msg):
         # Store the latest status for each stopline
         self.stopline_statuses = {res.stopline_id: res.recognition_result for res in msg.results}
+
+    def global_path_callback(self, msg):
+        # Save the last waypoint as the goal point
+        if msg.waypoints:
+            goal_wp = msg.waypoints[-1]
+            self.goal_point = (goal_wp.position.x, goal_wp.position.y, goal_wp.position.z)
+        else:
+            self.goal_point = None
 
     def run(self):
         rospy.spin()
