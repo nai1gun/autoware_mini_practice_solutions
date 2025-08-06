@@ -125,7 +125,7 @@ class CollisionPointsManager:
         for stopline_id, stopline_geom in self.stoplines.items():
             # Only consider stoplines with status RED or YELLOW
             status = self.stopline_statuses.get(stopline_id, None)
-            if status not in [1, 2]:  # 1: RED, 2: YELLOW
+            if status != 0:  # Only STOP (RED or YELLOW)
                 continue
 
             # Check intersection with buffered path
