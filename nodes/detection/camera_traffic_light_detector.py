@@ -167,15 +167,11 @@ class CameraTrafficLightDetector:
             except Exception as e:
                 rospy.logwarn("%s - Could not get transform for ROI extraction: %s", rospy.get_name(), e)
 
-        # Print out the rois for validation
-        print("ROIs:", rois)
-
         # Process ROIs if any
         if len(rois) > 0:
             roi_images = self.create_roi_images(image, rois)
             # run model and do prediction
             predictions = self.model.run(None, {'conv2d_1_input': roi_images})[0]
-            print("Predictions:", predictions)
 
             # Extract classes and scores for each bounding box
             classes = np.argmax(predictions, axis=1)
@@ -196,8 +192,6 @@ class CameraTrafficLightDetector:
 
         # Publish the traffic light results
         self.tfl_status_pub.publish(tfl_result_array)
-
-        rospy.loginfo("Found %d stoplines on path: %s", len(stoplines_on_path), stoplines_on_path)
 
     def calculate_roi_coordinates(self, stoplines_on_path, transform):
         rois = []

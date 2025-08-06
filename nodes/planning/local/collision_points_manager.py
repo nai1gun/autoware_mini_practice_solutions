@@ -6,9 +6,11 @@ import math
 import numpy as np
 import threading
 from ros_numpy import msgify
-from autoware_mini.msg import Path, DetectedObjectArray
+from autoware_mini.msg import Path, DetectedObjectArray, TrafficLightResultArray
 from sensor_msgs.msg import PointCloud2
 from shapely.geometry import LineString, Polygon
+from lanelet2.io import Origin, load
+from lanelet2.projection import UtmProjector
 
 DTYPE = np.dtype([
     ('x', np.float32),
@@ -26,16 +28,35 @@ class CollisionPointsManager:
 
     def __init__(self):
 
+        # Parameters related to lanelet2 map loading
+        lanelet2_map_path = rospy.get_param("~lanelet2_map_path")
+        coordinate_transformer = rospy.get_param("/localization/coordinate_transformer")
+        use_custom_origin = rospy.get_param("/localization/use_custom_origin")
+        utm_origin_lat = rospy.get_param("/localization/utm_origin_lat")
+        utm_origin_lon = rospy.get_param("/localization/utm_origin_lon")
+
         # parameters
         self.safety_box_width = rospy.get_param("safety_box_width")
         self.stopped_speed_limit = rospy.get_param("stopped_speed_limit")
         self.braking_safety_distance_obstacle = rospy.get_param("~braking_safety_distance_obstacle")
+        self.braking_safety_distance_stopline = rospy.get_param("~braking_safety_distance_stopline")
 
         # variables
         self.detected_objects = None
+        self.stopline_statuses = {}
 
         # Lock for thread safety
         self.lock = threading.Lock()
+
+        # Load the map using Lanelet2
+        if coordinate_transformer == "utm":
+            projector = UtmProjector(Origin(utm_origin_lat, utm_origin_lon), use_custom_origin, False)
+        else:
+            raise RuntimeError('Only "utm" is supported for lanelet2 map loading')
+        lanelet2_map = load(lanelet2_map_path, projector)
+
+        # Extract all stop lines and signals from the lanelet2 map
+        self.stoplines = get_stoplines(lanelet2_map)
 
         # publishers
         self.local_path_collision_pub = rospy.Publisher('collision_points', PointCloud2, queue_size=1, tcp_nodelay=True)
@@ -43,6 +64,7 @@ class CollisionPointsManager:
         # subscribers
         rospy.Subscriber('extracted_local_path', Path, self.path_callback, queue_size=1, tcp_nodelay=True)
         rospy.Subscriber('/detection/final_objects', DetectedObjectArray, self.detected_objects_callback, queue_size=1, buff_size=2**20, tcp_nodelay=True)
+        rospy.Subscriber('/detection/traffic_light_status', TrafficLightResultArray, self.traffic_light_status_callback, queue_size=1, tcp_nodelay=True)
 
     def detected_objects_callback(self, msg):
         self.detected_objects = msg.objects
@@ -99,13 +121,59 @@ class CollisionPointsManager:
                     )], dtype=DTYPE)
                 )
 
+        # --- Traffic light stopline collision points ---
+        for stopline_id, stopline_geom in self.stoplines.items():
+            # Only consider stoplines with status RED or YELLOW
+            status = self.stopline_statuses.get(stopline_id, None)
+            if status not in [1, 2]:  # 1: RED, 2: YELLOW
+                continue
+
+            # Check intersection with buffered path
+            if not path_buffer.intersects(stopline_geom):
+                continue
+
+            intersection = path_buffer.intersection(stopline_geom)
+            intersection_points = shapely.get_coordinates(intersection)
+
+            for x, y in intersection_points:
+                collision_points = np.append(
+                    collision_points,
+                    np.array([(
+                        x, y, 0.0,  # z=0 for stopline
+                        0.0, 0.0, 0.0,  # velocity
+                        self.braking_safety_distance_stopline,
+                        np.inf,
+                        2  # category 2: traffic light stop line
+                    )], dtype=DTYPE)
+                )
+
         # Publish collision points
         collision_msg = msgify(PointCloud2, collision_points)
         collision_msg.header = msg.header
         self.local_path_collision_pub.publish(collision_msg)
 
+    def traffic_light_status_callback(self, msg):
+        # Store the latest status for each stopline
+        self.stopline_statuses = {res.stopline_id: res.recognition_result for res in msg.results}
+
     def run(self):
         rospy.spin()
+
+def get_stoplines(lanelet2_map):
+    """
+    Add all stop lines to a dictionary with stop_line id as key and stop_line as value
+    :param lanelet2_map: lanelet2 map
+    :return: {stop_line_id: stopline, ...}
+    """
+
+    stoplines = {}
+    for line in lanelet2_map.lineStringLayer:
+        if line.attributes:
+            if line.attributes["type"] == "stop_line":
+                # add stoline to dictionary and convert it to shapely LineString
+                stoplines[line.id] = LineString([(p.x, p.y) for p in line])
+
+    return stoplines
 
 if __name__ == '__main__':
     rospy.init_node('collision_points_manager')
