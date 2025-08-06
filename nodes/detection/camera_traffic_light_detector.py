@@ -108,6 +108,16 @@ class CameraTrafficLightDetector:
         # used in calculate_roi_coordinates to filter out only relevant signals
         stoplines_on_path = []
 
+        # Only proceed if there are waypoints in the local path
+        if local_path_msg.waypoints and len(local_path_msg.waypoints) > 1:
+            # Create a Shapely LineString from the local path waypoints
+            local_path = LineString([(wp.position.x, wp.position.y) for wp in local_path_msg.waypoints])
+
+            # Check intersection with each stopline in self.tfl_stoplines
+            for stopline_id, stopline in self.tfl_stoplines.items():
+                if local_path.intersects(stopline):
+                    stoplines_on_path.append(stopline_id)
+
         with self.lock:
             self.stoplines_on_path = stoplines_on_path
             self.transform_from_frame = local_path_msg.header.frame_id
@@ -146,6 +156,8 @@ class CameraTrafficLightDetector:
 
         # Publish ROI images
         self.publish_roi_images(image, rois, classes, scores, camera_image_msg.header.stamp)
+
+        rospy.loginfo("Found %d stoplines on path: %s", len(stoplines_on_path), stoplines_on_path)
 
     def calculate_roi_coordinates(self, stoplines_on_path, transform):
         pass
