@@ -154,13 +154,80 @@ class CameraTrafficLightDetector:
         classes = []
         scores = []
 
+        # --- ROI extraction logic ---
+        if stoplines_on_path:
+            try:
+                # Get transform from map (transform_from_frame) to camera (camera_image_msg.header.frame_id)
+                transform = self.tf_buffer.lookup_transform(
+                    camera_image_msg.header.frame_id,
+                    transform_from_frame,
+                    camera_image_msg.header.stamp,
+                    rospy.Duration(self.transform_timeout)
+                )
+                rois = self.calculate_roi_coordinates(stoplines_on_path, transform)
+            except Exception as e:
+                rospy.logwarn("%s - Could not get transform for ROI extraction: %s", rospy.get_name(), e)
+
+        # Print out the rois for validation
+        print("ROIs:", rois)
+
         # Publish ROI images
         self.publish_roi_images(image, rois, classes, scores, camera_image_msg.header.stamp)
 
         rospy.loginfo("Found %d stoplines on path: %s", len(stoplines_on_path), stoplines_on_path)
 
     def calculate_roi_coordinates(self, stoplines_on_path, transform):
-        pass
+        rois = []
+
+        for linkId in stoplines_on_path:
+            for plId, traffic_lights in self.trafficlights[linkId].items():
+                us = []
+                vs = []
+
+                for x, y, z in traffic_lights.values():
+                    point_map = Point(float(x), float(y), float(z))
+
+                    # --- Transform point_map to camera frame ---
+                    point_stamped = PointStamped()
+                    point_stamped.header.frame_id = transform.child_frame_id
+                    point_stamped.point = point_map
+                    point_camera = do_transform_point(point_stamped, transform).point
+
+                    # --- Project to pixel coordinates ---
+                    u, v = self.camera_model.project3dToPixel((point_camera.x, point_camera.y, point_camera.z))
+
+                    # --- Check if pixel is within image bounds ---
+                    if u < 0 or u >= self.camera_model.width or v < 0 or v >= self.camera_model.height:
+                        continue
+
+                    # Convert the extent in meters to extent in pixels
+                    extent_x_px = self.camera_model.fx() * self.roi_width_extent / point_camera.z
+                    extent_y_px = self.camera_model.fy() * self.roi_height_extent / point_camera.z
+
+                    us.extend([u + extent_x_px, u - extent_x_px])
+                    vs.extend([v + extent_y_px, v - extent_y_px])
+
+                # not all traffic lights were in image, take next traffic light
+                if len(us) < 8:
+                    continue
+
+                # round and clip against image limits
+                us = np.clip(np.round(np.array(us)), 0, self.camera_model.width - 1)
+                vs = np.clip(np.round(np.array(vs)), 0, self.camera_model.height - 1)
+
+                # extract one roi per traffic light
+                min_u = int(np.min(us))
+                max_u = int(np.max(us))
+                min_v = int(np.min(vs))
+                max_v = int(np.max(vs))
+
+                # check if roi is too small
+                if max_u - min_u < self.min_roi_width:
+                    continue
+
+                rois.append([int(linkId), plId, min_u, max_u, min_v, max_v])
+
+        return rois
 
     def create_roi_images(self, image, rois):
         pass
