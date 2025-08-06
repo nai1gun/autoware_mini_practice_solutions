@@ -100,9 +100,19 @@ class SpeedPlanner:
                 # Convert to numpy arrays for vectorized math
                 collision_points_distances = np.array(collision_points_distances)
                 collision_point_velocities = np.array(collision_point_velocities)
+
+                # Calculate target_distances with braking reaction time and abs velocity
+                target_distances = (
+                    collision_points_distances
+                    - self.distance_to_car_front
+                    - np.array([pt['distance_to_stop'] for pt in collision_points])
+                    - self.braking_reaction_time * np.abs(collision_point_velocities)
+                )
+
+
                 a = abs(self.default_deceleration)
-                s = collision_points_distances - self.distance_to_car_front - np.array([pt['distance_to_stop'] for pt in collision_points])
-                under_sqrt = collision_point_velocities**2 + 2 * a * s
+                v_obj = np.maximum(0, collision_point_velocities)
+                under_sqrt = v_obj**2 + 2 * a * target_distances
                 target_velocities = np.sqrt(np.maximum(0.0, under_sqrt))
 
                 # Find the minimum target velocity (most restrictive)
