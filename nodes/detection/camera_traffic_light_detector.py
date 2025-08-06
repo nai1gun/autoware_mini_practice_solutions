@@ -140,7 +140,6 @@ class CameraTrafficLightDetector:
         tfl_result_array = TrafficLightResultArray()
         tfl_result_array.header.stamp = camera_image_msg.header.stamp
         tfl_result_array.header.frame_id = camera_image_msg.header.frame_id
-        self.tfl_status_pub.publish(tfl_result_array)
 
         # Load the image
         image = self.bridge.imgmsg_to_cv2(camera_image_msg, desired_encoding='rgb8')
@@ -178,8 +177,25 @@ class CameraTrafficLightDetector:
             predictions = self.model.run(None, {'conv2d_1_input': roi_images})[0]
             print("Predictions:", predictions)
 
+            # Extract classes and scores for each bounding box
+            classes = np.argmax(predictions, axis=1)
+            scores = np.max(predictions, axis=1)
+
+            # extract results in sync with rois
+            for cl, (stoplineId, plId, _, _, _, _) in zip(classes, rois):
+                tfl_result = TrafficLightResult()
+                tfl_result.light_id = plId
+                tfl_result.stopline_id = stoplineId
+                tfl_result.recognition_result = CLASSIFIER_RESULT_TO_TLRESULT[cl]
+                tfl_result.recognition_result_str = CLASSIFIER_RESULT_TO_STRING[cl]
+
+                tfl_result_array.results.append(tfl_result)
+
         # Publish ROI images
         self.publish_roi_images(image, rois, classes, scores, camera_image_msg.header.stamp)
+
+        # Publish the traffic light results
+        self.tfl_status_pub.publish(tfl_result_array)
 
         rospy.loginfo("Found %d stoplines on path: %s", len(stoplines_on_path), stoplines_on_path)
 
