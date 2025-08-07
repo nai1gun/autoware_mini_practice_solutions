@@ -99,8 +99,7 @@ class LocalPathExtractor:
                 global_path_distances,
                 global_path_velocities,
                 kind='linear',
-                bounds_error=False,
-                fill_value=0.0
+                bounds_error=False
            )
 
 

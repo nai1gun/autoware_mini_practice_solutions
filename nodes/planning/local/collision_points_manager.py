@@ -78,7 +78,7 @@ class CollisionPointsManager:
         collision_points = np.array([], dtype=DTYPE)
 
         # Check for empty path or no detected objects
-        if not msg.waypoints or len(msg.waypoints) == 0 or not detected_objects:
+        if not msg.waypoints or len(msg.waypoints) == 0:
             empty_msg = msgify(PointCloud2, collision_points)
             empty_msg.header = msg.header
             self.local_path_collision_pub.publish(empty_msg)
@@ -90,39 +90,40 @@ class CollisionPointsManager:
         path_buffer = local_path_linestring.buffer(self.safety_box_width / 2, cap_style='flat')  # flat caps
         shapely.prepare(path_buffer)
 
-        for obj in detected_objects:
-            if not hasattr(obj, 'convex_hull') or len(obj.convex_hull) < 9:
-                continue  # Not enough points for a polygon (3 points * 3 coords)
+        if detected_objects:
+            for obj in detected_objects:
+                if not hasattr(obj, 'convex_hull') or len(obj.convex_hull) < 9:
+                    continue  # Not enough points for a polygon (3 points * 3 coords)
 
-            # obj.convex_hull is a flat list: [x1, y1, z1, x2, y2, z2, ...]
-            hull_xy = [(obj.convex_hull[i], obj.convex_hull[i+1]) for i in range(0, len(obj.convex_hull), 3)]
-    
-            try:
-                obj_polygon = Polygon(hull_xy)
-            except Exception:
-                continue  # Skip invalid polygons
+                # obj.convex_hull is a flat list: [x1, y1, z1, x2, y2, z2, ...]
+                hull_xy = [(obj.convex_hull[i], obj.convex_hull[i+1]) for i in range(0, len(obj.convex_hull), 3)]
+        
+                try:
+                    obj_polygon = Polygon(hull_xy)
+                except Exception:
+                    continue  # Skip invalid polygons
 
-            # Check intersection
-            if not path_buffer.intersects(obj_polygon):
-                continue
+                # Check intersection
+                if not path_buffer.intersects(obj_polygon):
+                    continue
 
-            intersection = path_buffer.intersection(obj_polygon)
-            intersection_points = shapely.get_coordinates(intersection)
+                intersection = path_buffer.intersection(obj_polygon)
+                intersection_points = shapely.get_coordinates(intersection)
 
-            # Calculate object speed
-            object_speed = math.hypot(obj.velocity.x, obj.velocity.y)
+                # Calculate object speed
+                object_speed = math.hypot(obj.velocity.x, obj.velocity.y)
 
-            for x, y in intersection_points:
-                collision_points = np.append(
-                    collision_points,
-                    np.array([(
-                        x, y, obj.centroid.z,
-                        obj.velocity.x, obj.velocity.y, obj.velocity.z,
-                        self.braking_safety_distance_obstacle,
-                        np.inf,
-                        3 if object_speed < self.stopped_speed_limit else 4
-                    )], dtype=DTYPE)
-                )
+                for x, y in intersection_points:
+                    collision_points = np.append(
+                        collision_points,
+                        np.array([(
+                            x, y, obj.centroid.z,
+                            obj.velocity.x, obj.velocity.y, obj.velocity.z,
+                            self.braking_safety_distance_obstacle,
+                            np.inf,
+                            3 if object_speed < self.stopped_speed_limit else 4
+                        )], dtype=DTYPE)
+                    )
 
         # --- Traffic light stopline collision points ---
         for stopline_id, stopline_geom in self.stoplines.items():
@@ -167,6 +168,9 @@ class CollisionPointsManager:
                         1  # category 1: goal point
                     )], dtype=DTYPE)
                 )
+            else:
+                rospy.logwarn("No goal point intersect %s with %s", path_buffer, goal_buffer)
+
 
         # Publish collision points
         collision_msg = msgify(PointCloud2, collision_points)
