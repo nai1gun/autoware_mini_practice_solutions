@@ -119,17 +119,10 @@ class SpeedPlanner:
                 if len(target_velocities) > 0:
                     min_idx = int(np.argmin(target_velocities))
                     min_target_velocity = target_velocities[min_idx]
-                    closest_object_distance = collision_points_distances[min_idx]
+                    closest_object_distance = collision_points_distances[min_idx] - self.distance_to_car_front
                     closest_object_velocity = collision_point_velocities[min_idx]
-                    stopping_point_distance = collision_points_distances[min_idx] - collision_points[min_idx]['distance_to_stop']
-                    stopping_point_distance = max(0.0, stopping_point_distance)
+                    stopping_point_distance = collision_points_distances[min_idx]
                     collision_point_category = int(collision_points[min_idx]['category'])
-                else:
-                    min_target_velocity = 0.0
-                    stopping_point_distance = 0.0
-                    closest_object_distance = 0.0
-                    collision_point_category = 4
-                    closest_object_velocity = 0.0
 
                 # Overwrite local path waypoint velocities with the minimum target velocity
                 path.waypoints = local_path_msg.waypoints
