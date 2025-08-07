@@ -48,15 +48,12 @@ class LocalPathExtractor:
                self.global_path_xyz = None
                self.global_path_linestring = None
                self.global_path_velocities = None
-           rospy.loginfo("%s - Empty global path received", rospy.get_name())
        else:
            try:
                with self.lock:
                    self.global_path_xyz = np.array([(waypoint.position.x, waypoint.position.y, waypoint.position.z) for waypoint in msg.waypoints])
                    self.global_path_linestring = shapely.LineString(self.global_path_xyz)
                    self.global_path_velocities = np.array([waypoint.speed for waypoint in msg.waypoints])
-               rospy.loginfo("%s - Global path received with %i waypoints", rospy.get_name(),
-                             len(self.global_path_xyz))
            except Exception as e:
                self.global_path_xyz = None
                self.global_path_linestring = None
