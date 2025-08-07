@@ -35,6 +35,9 @@ class Lanelet2GlobalPlanner:
         self.goal_point = None
         self.graph = None
 
+        #Initialize current location
+        self.current_location = None
+
         # Load output_frame and speed_limit from parameters
         self.speed_limit = rospy.get_param('~speed_limit')  # km/h
         self.output_frame = rospy.get_param('~/planning/lanelet2_global_planner/output_frame')
