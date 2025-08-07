@@ -135,19 +135,43 @@ class Lanelet2GlobalPlanner:
         self.waypoints_pub.publish(path)
 
     def align_path_end_with_goal(self, waypoints, goal_point):
+        if not waypoints:
+            return waypoints
         # Convert waypoints to LineString
         path_line = LineString([(wp.position.x, wp.position.y) for wp in waypoints])
         # Project goal point onto path
         goal_shapely = Point(goal_point.x, goal_point.y)
         projected_dist = path_line.project(goal_shapely)
         projected_point = path_line.interpolate(projected_dist)
-        # Overwrite last waypoint with projected point
-        waypoints[-1].position.x = projected_point.x
-        waypoints[-1].position.y = projected_point.y
+
         # Update self.goal_point as well
         self.goal_point.x = projected_point.x
         self.goal_point.y = projected_point.y
-        return waypoints
+        
+        # Find the first waypoint whose cumulative distance >= projected_dist
+        cum_dist = 0.0
+        prev = (waypoints[0].position.x, waypoints[0].position.y)
+        cut_idx = None
+        for i, wp in enumerate(waypoints):
+            curr = (wp.position.x, wp.position.y)
+            if i > 0:
+                cum_dist += Point(prev).distance(Point(curr))
+            if cum_dist >= projected_dist:
+                cut_idx = i
+                break
+            prev = curr
+
+        if cut_idx is None:
+            # If not found, just return original waypoints
+            return waypoints
+
+        # Overwrite the found waypoint with the projected goal
+        waypoints[cut_idx].position.x = projected_point.x
+        waypoints[cut_idx].position.y = projected_point.y
+
+        
+        # Remove all waypoints after this one
+        return waypoints[:cut_idx + 1]
     
     def run(self):
         rospy.spin()

@@ -168,9 +168,6 @@ class CollisionPointsManager:
                         1  # category 1: goal point
                     )], dtype=DTYPE)
                 )
-            else:
-                rospy.logwarn("No goal point intersect %s with %s", path_buffer, goal_buffer)
-
 
         # Publish collision points
         collision_msg = msgify(PointCloud2, collision_points)
