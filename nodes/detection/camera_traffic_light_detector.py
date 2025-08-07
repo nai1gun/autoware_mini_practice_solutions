@@ -65,6 +65,7 @@ class CameraTrafficLightDetector:
         self.tfl_stoplines = None
         self.camera_model = None
         self.stoplines_on_path = None
+        self.transform_from_frame = None
 
         self.lock = threading.Lock()
         self.bridge = CvBridge()
